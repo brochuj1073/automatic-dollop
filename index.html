@@ -1,0 +1,905 @@
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+HTML_PAGE = r"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Market Academy</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0f172a;
+    color: #f8fafc;
+}
+header {
+    background: #111827;
+    padding: 18px;
+    border-bottom: 2px solid #22c55e;
+}
+header h1 { margin: 0; color: #22c55e; }
+header p { margin-bottom: 0; color: #94a3b8; }
+.container { width: 95%; max-width: 1250px; margin: auto; padding: 20px; }
+.grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+}
+.card {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+.card h3, .card h2 { margin-top: 0; }
+.big { font-size: 24px; font-weight: bold; }
+.green { color: #22c55e; }
+.red { color: #ef4444; }
+.blue { color: #38bdf8; }
+.yellow { color: #facc15; }
+.muted { color: #94a3b8; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button {
+    border: 0;
+    border-radius: 7px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.buy { background: #22c55e; color: white; }
+.sell { background: #ef4444; color: white; }
+.primary { background: #3b82f6; color: white; }
+.secondary { background: #475569; color: white; }
+.warning { background: #eab308; color: #111827; }
+input, select {
+    padding: 8px;
+    border-radius: 6px;
+    border: none;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #1e293b;
+    margin-top: 10px;
+}
+th {
+    background: #334155;
+    padding: 10px;
+}
+td {
+    padding: 10px;
+    border-bottom: 1px solid #334155;
+    text-align: center;
+}
+tr:hover { background: #263449; }
+.symbol { color: #38bdf8; font-weight: bold; }
+.news {
+    border-left: 5px solid #f59e0b;
+}
+.tip {
+    border-left: 5px solid #3b82f6;
+}
+.challenge {
+    border-left: 5px solid #eab308;
+}
+.success {
+    border-left: 5px solid #22c55e;
+}
+.danger {
+    border-left: 5px solid #ef4444;
+}
+.progress-wrap {
+    background: #334155;
+    height: 14px;
+    border-radius: 20px;
+    overflow: hidden;
+}
+.progress {
+    background: #22c55e;
+    height: 100%;
+    width: 0%;
+}
+canvas {
+    width: 100%;
+    max-width: 100%;
+    height: 280px;
+    background: #0b1220;
+    border-radius: 10px;
+}
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+.tab-btn {
+    background: #334155;
+    color: white;
+}
+.tab-btn.active {
+    background: #22c55e;
+}
+.tab { display: none; }
+.tab.active { display: block; }
+.quiz-option {
+    width: 100%;
+    margin: 6px 0;
+    background: #334155;
+    color: white;
+    text-align: left;
+}
+.badge {
+    display: inline-block;
+    background: #334155;
+    border-radius: 20px;
+    padding: 6px 10px;
+    margin: 4px;
+}
+.locked { opacity: .45; }
+.history {
+    max-height: 260px;
+    overflow-y: auto;
+}
+.company-box {
+    background: #111827;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+}
+@media(max-width: 900px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+}
+@media(max-width: 600px) {
+    .grid { grid-template-columns: 1fr; }
+    table { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<header>
+    <h1>📈 Stock Market Academy</h1>
+    <p>Paper-trading game for learning stock-market basics with fictional prices.</p>
+</header>
+
+<div class="container">
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="showTab('market', this)">Market</button>
+    <button class="tab-btn" onclick="showTab('portfolio', this)">Portfolio</button>
+    <button class="tab-btn" onclick="showTab('learn', this)">Learn</button>
+    <button class="tab-btn" onclick="showTab('achievements', this)">Achievements</button>
+    <button class="tab-btn" onclick="showTab('scores', this)">High Scores</button>
+</div>
+
+<div id="market" class="tab active">
+
+<div class="grid">
+    <div class="card"><h3>Cash</h3><div id="cash" class="big green">$10,000.00</div></div>
+    <div class="card"><h3>Portfolio Value</h3><div id="portfolioValue" class="big blue">$0.00</div></div>
+    <div class="card"><h3>Net Worth</h3><div id="netWorth" class="big">$10,000.00</div></div>
+    <div class="card"><h3>Day</h3><div class="big"><span id="day">1</span> / 30</div></div>
+</div>
+
+<div class="card">
+    <div class="controls">
+        <label>Difficulty:
+            <select id="difficulty" onchange="setDifficulty()">
+                <option value="easy">Easy</option>
+                <option value="normal" selected>Normal</option>
+                <option value="hard">Hard</option>
+            </select>
+        </label>
+        <span class="muted" id="difficultyDesc"></span>
+    </div>
+</div>
+
+<div class="card">
+    <h3>🎓 Investor Level <span id="level">1</span></h3>
+    <p>XP: <span id="xp">0</span> / 100</p>
+    <div class="progress-wrap"><div id="xpBar" class="progress"></div></div>
+</div>
+
+<div id="marketMoodBox" class="card news">
+    <h2>🌎 Market Condition: <span id="marketMood">Normal</span></h2>
+    <p id="newsText">The market opens for your first day of trading.</p>
+</div>
+
+<div class="card tip">
+    <strong>💡 Learning Tip:</strong>
+    <span id="learningTip">Diversification means spreading your money across multiple investments.</span>
+</div>
+
+<div class="card challenge">
+    <strong>🏆 Current Mission:</strong>
+    <span id="missionText">Buy your first stock.</span>
+</div>
+
+<div class="card">
+    <h2>30-Day Challenge</h2>
+    <p>Starting money: $10,000. Goal: finish Day 30 with at least <strong>$12,000</strong>.</p>
+    <div class="progress-wrap"><div id="dayProgress" class="progress"></div></div>
+</div>
+
+<div class="card">
+    <h2>Stock Market</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Company</th>
+                <th>Price</th>
+                <th>Change</th>
+                <th>Dividend</th>
+                <th>Shares</th>
+                <th>Trade</th>
+                <th>Info</th>
+            </tr>
+        </thead>
+        <tbody id="stockTable"></tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Selected Stock Chart</h2>
+    <p id="chartTitle">AAPL price history</p>
+    <canvas id="chart" width="1000" height="280"></canvas>
+</div>
+
+<div class="controls">
+    <button class="primary" onclick="nextDay()">⏭ Advance Trading Day</button>
+    <button class="warning" onclick="collectDividends(true)">💵 Check Dividends</button>
+    <button class="secondary" onclick="resetGame()">Reset Game</button>
+</div>
+
+</div>
+
+<div id="portfolio" class="tab">
+    <div class="card">
+        <h2>💼 Your Portfolio</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Stock</th>
+                    <th>Shares</th>
+                    <th>Average Cost</th>
+                    <th>Current Price</th>
+                    <th>Value</th>
+                    <th>Profit/Loss</th>
+                </tr>
+            </thead>
+            <tbody id="portfolioTable"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>📊 Allocation</h2>
+        <div id="allocation"></div>
+    </div>
+
+    <div class="card history">
+        <h2>📜 Transaction History</h2>
+        <div id="history"></div>
+    </div>
+</div>
+
+<div id="learn" class="tab">
+    <div class="card">
+        <h2>🧠 Quiz Center</h2>
+        <p id="quizQuestion"></p>
+        <div id="quizOptions"></div>
+        <p id="quizResult"></p>
+        <button class="primary" onclick="newQuiz()">New Question</button>
+    </div>
+
+    <div class="card">
+        <h2>📚 Quick Lessons</h2>
+        <div class="company-box"><strong>P/E Ratio:</strong> compares a company's stock price with its earnings. A high P/E can mean investors expect stronger future growth, but it does not guarantee that growth.</div>
+        <div class="company-box"><strong>Diversification:</strong> spreading money across different investments to reduce the impact of one poor performer.</div>
+        <div class="company-box"><strong>Market Cap:</strong> the total value of a company's outstanding shares.</div>
+        <div class="company-box"><strong>Dividend:</strong> money some companies pay shareholders from profits.</div>
+        <div class="company-box"><strong>ETF:</strong> a fund traded like a stock that can hold many companies at once.</div>
+        <div class="company-box"><strong>Volatility:</strong> how much and how quickly prices move up and down.</div>
+        <div class="company-box"><strong>Bull Market:</strong> a period when prices generally rise.</div>
+        <div class="company-box"><strong>Bear Market:</strong> a period when prices generally fall.</div>
+    </div>
+</div>
+
+<div id="achievements" class="tab">
+    <div class="card">
+        <h2>🏅 Achievements</h2>
+        <div id="achievementList"></div>
+    </div>
+</div>
+
+<div id="scores" class="tab">
+    <div class="card">
+        <h2>🏆 High Scores</h2>
+        <p>Best finished games saved in this browser.</p>
+        <div id="scoreList"></div>
+    </div>
+</div>
+
+<div id="companyModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); padding:30px; overflow:auto;">
+    <div class="card" style="max-width:650px; margin:50px auto;">
+        <button class="secondary" style="float:right" onclick="closeCompany()">Close</button>
+        <div id="companyContent"></div>
+    </div>
+</div>
+
+</div>
+
+<script>
+const BASE_STOCKS = {
+    AAPL: {name:"Apple", sector:"Technology", price:180, dividend:0.24, pe:29, marketCap:"Large", description:"Consumer electronics, software, and services."},
+    MSFT: {name:"Microsoft", sector:"Technology", price:410, dividend:0.75, pe:34, marketCap:"Large", description:"Software, cloud services, gaming, and AI products."},
+    NVDA: {name:"NVIDIA", sector:"Semiconductors", price:135, dividend:0.04, pe:55, marketCap:"Large", description:"Graphics processors and AI computing hardware."},
+    TSLA: {name:"Tesla", sector:"Automotive", price:240, dividend:0, pe:65, marketCap:"Large", description:"Electric vehicles, energy storage, and charging products."},
+    AMZN: {name:"Amazon", sector:"Consumer", price:190, dividend:0, pe:42, marketCap:"Large", description:"E-commerce, logistics, cloud computing, and digital services."},
+    GOOGL: {name:"Alphabet", sector:"Technology", price:175, dividend:0.20, pe:27, marketCap:"Large", description:"Search, advertising, cloud computing, and digital platforms."},
+    JNJ: {name:"Johnson & Johnson", sector:"Healthcare", price:160, dividend:1.24, pe:18, marketCap:"Large", description:"Healthcare products and pharmaceuticals."},
+    KO: {name:"Coca-Cola", sector:"Consumer Staples", price:65, dividend:0.49, pe:24, marketCap:"Large", description:"Global beverage company with a large brand portfolio."}
+};
+
+let stocks = {};
+let cash = 10000;
+let day = 1;
+let xp = 0;
+let level = 1;
+let portfolio = {};
+let history = [];
+let selectedSymbol = "AAPL";
+let difficulty = "normal";
+let marketMood = "Normal";
+let missionIndex = 0;
+let quizAnswered = 0;
+let quizCorrect = 0;
+let dividendsEarned = 0;
+let crashSurvived = false;
+let finished = false;
+
+const achievements = {
+    firstTrade: {name:"First Trade", desc:"Buy your first stock.", unlocked:false},
+    diversified: {name:"Diversifier", desc:"Own at least 3 different stocks.", unlocked:false},
+    fiveStocks: {name:"Collector", desc:"Own at least 5 different stocks.", unlocked:false},
+    profit500: {name:"Profit Maker", desc:"Reach $500 total profit.", unlocked:false},
+    dividend: {name:"Income Investor", desc:"Receive a dividend payment.", unlocked:false},
+    quiz5: {name:"Student Trader", desc:"Answer 5 quiz questions correctly.", unlocked:false},
+    crash: {name:"Crash Survivor", desc:"Make it through a market crash.", unlocked:false},
+    level5: {name:"Market Scholar", desc:"Reach Investor Level 5.", unlocked:false},
+    winner: {name:"30-Day Winner", desc:"Finish Day 30 with at least $12,000.", unlocked:false}
+};
+
+const missions = [
+    "Buy your first stock.",
+    "Own at least 3 different stocks.",
+    "Build a portfolio worth $5,000.",
+    "Earn $500 in total profit.",
+    "Receive at least one dividend payment.",
+    "Answer 3 quiz questions correctly.",
+    "Reach Investor Level 3.",
+    "Finish Day 30 with at least $12,000."
+];
+
+const tips = [
+    "Diversification spreads risk across multiple investments.",
+    "A stock represents partial ownership in a company.",
+    "Higher potential return often comes with higher risk.",
+    "A profit is not locked in until you sell.",
+    "Dividends are payments some companies make to shareholders.",
+    "Market news can move prices even when a company's long-term outlook has not changed.",
+    "Volatility describes how sharply prices move.",
+    "Do not assume a recent winner will keep rising.",
+    "A portfolio is the collection of investments you own.",
+    "Long-term investing usually focuses more on business quality than daily price movement."
+];
+
+const quizzes = [
+    {q:"What does diversification mean?", a:["Buying only one strong stock","Spreading money across investments","Selling every day","Borrowing money to trade"], correct:1},
+    {q:"What is a dividend?", a:["A loan fee","A payment some companies make to shareholders","A stock split","A type of tax"], correct:1},
+    {q:"What is market capitalization?", a:["Company revenue","Share price times shares outstanding","Company debt","Dividend amount"], correct:1},
+    {q:"What does volatility describe?", a:["How quickly prices move","How many employees a company has","The dividend date","The stock symbol"], correct:0},
+    {q:"What is an ETF?", a:["A single company","A fund that can hold many investments","A bank account","A stock-market tax"], correct:1},
+    {q:"What is a bull market?", a:["A market where prices generally rise","A market where all stocks pay dividends","A closed market","A market with no risk"], correct:0},
+    {q:"What is a bear market?", a:["A market with falling prices","A market with only technology stocks","A market with no trading","A market with guaranteed gains"], correct:0},
+    {q:"What does a P/E ratio compare?", a:["Price and earnings","Debt and cash","Revenue and employees","Dividend and volume"], correct:0}
+];
+
+const events = [
+    {text:"Strong technology earnings lift major tech companies.", symbols:["AAPL","MSFT","NVDA","GOOGL"], effect:0.045, mood:"Bullish"},
+    {text:"Interest-rate worries pressure growth stocks.", symbols:["AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL"], effect:-0.04, mood:"Bearish"},
+    {text:"AI demand accelerates across data centers.", symbols:["NVDA","MSFT"], effect:0.07, mood:"Bullish"},
+    {text:"Electric-vehicle demand weakens.", symbols:["TSLA"], effect:-0.08, mood:"Bearish"},
+    {text:"Consumers spend more online than expected.", symbols:["AMZN"], effect:0.055, mood:"Bullish"},
+    {text:"Healthcare companies report steady demand.", symbols:["JNJ"], effect:0.035, mood:"Bullish"},
+    {text:"Defensive consumer stocks attract investors.", symbols:["KO","JNJ"], effect:0.03, mood:"Defensive"},
+    {text:"Broad market optimism pushes prices higher.", symbols:Object.keys(BASE_STOCKS), effect:0.025, mood:"Bull Market"},
+    {text:"Economic fears trigger a broad selloff.", symbols:Object.keys(BASE_STOCKS), effect:-0.045, mood:"Bear Market"},
+    {text:"Markets trade quietly with no major news.", symbols:[], effect:0, mood:"Normal"}
+];
+
+function cloneBaseStocks() {
+    let result = {};
+    for (let s in BASE_STOCKS) {
+        result[s] = {...BASE_STOCKS[s], change:0, history:[BASE_STOCKS[s].price]};
+    }
+    return result;
+}
+
+function money(n) {
+    return "$" + Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function showTab(id, btn) {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".tab-btn").forEach(x => x.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+    btn.classList.add("active");
+}
+
+function setDifficulty() {
+    difficulty = document.getElementById("difficulty").value;
+    updateDifficultyText();
+    saveGame();
+}
+
+function updateDifficultyText() {
+    const text = {
+        easy:"Lower volatility and slightly more starting cash protection.",
+        normal:"Balanced market movement.",
+        hard:"Higher volatility and stronger market shocks."
+    };
+    document.getElementById("difficultyDesc").innerText = text[difficulty];
+}
+
+function volatility() {
+    if (difficulty === "easy") return 0.025;
+    if (difficulty === "hard") return 0.06;
+    return 0.04;
+}
+
+function updateStockTable() {
+    let html = "";
+    for (let symbol in stocks) {
+        let s = stocks[symbol];
+        let cls = s.change >= 0 ? "green" : "red";
+        let sign = s.change >= 0 ? "+" : "";
+        html += `
+        <tr>
+            <td class="symbol">${symbol}</td>
+            <td>${s.name}</td>
+            <td>${money(s.price)}</td>
+            <td class="${cls}">${sign}${s.change.toFixed(2)}%</td>
+            <td>${s.dividend > 0 ? money(s.dividend) : "None"}</td>
+            <td><input type="number" id="amt-${symbol}" value="1" min="1" style="width:70px"></td>
+            <td>
+                <button class="buy" onclick="buyStock('${symbol}')">Buy</button>
+                <button class="sell" onclick="sellStock('${symbol}')">Sell</button>
+            </td>
+            <td>
+                <button class="secondary" onclick="selectStock('${symbol}')">Chart</button>
+                <button class="secondary" onclick="showCompany('${symbol}')">Company</button>
+            </td>
+        </tr>`;
+    }
+    document.getElementById("stockTable").innerHTML = html;
+}
+
+function buyStock(symbol) {
+    if (finished) return alert("This 30-day game is finished. Reset to play again.");
+    let amount = parseInt(document.getElementById("amt-"+symbol).value);
+    if (!amount || amount < 1) return alert("Enter a valid number of shares.");
+    let cost = stocks[symbol].price * amount;
+    if (cost > cash) return alert("You do not have enough cash.");
+    cash -= cost;
+    if (!portfolio[symbol]) portfolio[symbol] = {shares:0,totalCost:0};
+    portfolio[symbol].shares += amount;
+    portfolio[symbol].totalCost += cost;
+    history.unshift(`Day ${day}: BUY ${amount} ${symbol} at ${money(stocks[symbol].price)}`);
+    addXP(10);
+    unlock("firstTrade");
+    updateGame();
+}
+
+function sellStock(symbol) {
+    if (finished) return alert("This 30-day game is finished. Reset to play again.");
+    let amount = parseInt(document.getElementById("amt-"+symbol).value);
+    if (!amount || amount < 1) return alert("Enter a valid number of shares.");
+    if (!portfolio[symbol] || portfolio[symbol].shares < amount) return alert("You do not own enough shares.");
+    let h = portfolio[symbol];
+    let avg = h.totalCost / h.shares;
+    cash += stocks[symbol].price * amount;
+    h.shares -= amount;
+    h.totalCost -= avg * amount;
+    history.unshift(`Day ${day}: SELL ${amount} ${symbol} at ${money(stocks[symbol].price)}`);
+    if (h.shares === 0) delete portfolio[symbol];
+    addXP(10);
+    updateGame();
+}
+
+function nextDay() {
+    if (finished) return alert("The 30-day challenge is already complete.");
+    if (day >= 30) {
+        finishGame();
+        return;
+    }
+    day++;
+
+    let event = events[Math.floor(Math.random()*events.length)];
+    let isCrash = Math.random() < (difficulty === "hard" ? 0.10 : difficulty === "easy" ? 0.03 : 0.06);
+
+    if (isCrash) {
+        marketMood = "MARKET CRASH";
+        document.getElementById("newsText").innerText = "A sudden market panic causes a sharp broad selloff.";
+    } else {
+        marketMood = event.mood;
+        document.getElementById("newsText").innerText = event.text;
+    }
+
+    for (let symbol in stocks) {
+        let s = stocks[symbol];
+        let old = s.price;
+        let move = (Math.random()*2-1)*volatility();
+
+        if (event.symbols.includes(symbol) && !isCrash) move += event.effect;
+        if (marketMood === "Bull Market" && !isCrash) move += 0.012;
+        if (marketMood === "Bear Market" && !isCrash) move -= 0.012;
+        if (isCrash) move -= (0.08 + Math.random()*0.08);
+
+        s.price = Math.max(5, Math.round(old*(1+move)*100)/100);
+        s.change = ((s.price-old)/old)*100;
+        s.history.push(s.price);
+        if (s.history.length > 30) s.history.shift();
+    }
+
+    if (isCrash) crashSurvived = true;
+    if (crashSurvived) unlock("crash");
+
+    collectDividends(false);
+
+    document.getElementById("learningTip").innerText = tips[Math.floor(Math.random()*tips.length)];
+    addXP(5);
+    updateGame();
+
+    if (day >= 30) finishGame();
+}
+
+function collectDividends(showMessage) {
+    if (day % 5 !== 0) {
+        if (showMessage) alert("Dividend day happens every 5 trading days in this game.");
+        return;
+    }
+    let total = 0;
+    for (let symbol in portfolio) {
+        let pay = stocks[symbol].dividend * portfolio[symbol].shares;
+        if (pay > 0) total += pay;
+    }
+    if (total > 0) {
+        cash += total;
+        dividendsEarned += total;
+        history.unshift(`Day ${day}: DIVIDENDS received ${money(total)}`);
+        unlock("dividend");
+        addXP(15);
+        if (showMessage) alert("You received " + money(total) + " in dividends.");
+    } else if (showMessage) {
+        alert("You do not currently own any dividend-paying stocks.");
+    }
+}
+
+function portfolioValue() {
+    let t = 0;
+    for (let symbol in portfolio) t += portfolio[symbol].shares * stocks[symbol].price;
+    return t;
+}
+
+function totalProfit() {
+    return cash + portfolioValue() - 10000;
+}
+
+function updatePortfolio() {
+    let body = "";
+    let total = portfolioValue();
+    let keys = Object.keys(portfolio);
+
+    if (!keys.length) {
+        body = `<tr><td colspan="6">You do not own any stocks yet.</td></tr>`;
+    } else {
+        for (let symbol of keys) {
+            let h = portfolio[symbol];
+            let avg = h.totalCost/h.shares;
+            let value = h.shares*stocks[symbol].price;
+            let pnl = value-h.totalCost;
+            body += `
+            <tr>
+                <td class="symbol">${symbol}</td>
+                <td>${h.shares}</td>
+                <td>${money(avg)}</td>
+                <td>${money(stocks[symbol].price)}</td>
+                <td>${money(value)}</td>
+                <td class="${pnl>=0?'green':'red'}">${money(pnl)}</td>
+            </tr>`;
+        }
+    }
+    document.getElementById("portfolioTable").innerHTML = body;
+
+    let alloc = "";
+    if (!keys.length) alloc = "<p>No holdings yet.</p>";
+    for (let symbol of keys) {
+        let value = portfolio[symbol].shares*stocks[symbol].price;
+        let pct = total ? value/total*100 : 0;
+        alloc += `<p><strong>${symbol}</strong>: ${pct.toFixed(1)}% (${money(value)})</p>
+        <div class="progress-wrap"><div class="progress" style="width:${pct}%"></div></div>`;
+    }
+    document.getElementById("allocation").innerHTML = alloc;
+}
+
+function updateHistory() {
+    document.getElementById("history").innerHTML =
+        history.length ? history.map(x=>`<p>${x}</p>`).join("") : "<p>No trades yet.</p>";
+}
+
+function addXP(amount) {
+    xp += amount;
+    while (xp >= 100) {
+        xp -= 100;
+        level++;
+        alert("🎉 Level up! You reached Investor Level " + level + ".");
+    }
+    if (level >= 5) unlock("level5");
+}
+
+function updateMissions() {
+    let owned = Object.keys(portfolio).length;
+    let value = portfolioValue();
+    let profit = totalProfit();
+
+    if (missionIndex === 0 && history.some(x=>x.includes("BUY"))) missionIndex++;
+    if (missionIndex === 1 && owned >= 3) missionIndex++;
+    if (missionIndex === 2 && value >= 5000) missionIndex++;
+    if (missionIndex === 3 && profit >= 500) missionIndex++;
+    if (missionIndex === 4 && dividendsEarned > 0) missionIndex++;
+    if (missionIndex === 5 && quizCorrect >= 3) missionIndex++;
+    if (missionIndex === 6 && level >= 3) missionIndex++;
+
+    if (owned >= 3) unlock("diversified");
+    if (owned >= 5) unlock("fiveStocks");
+    if (profit >= 500) unlock("profit500");
+    if (quizCorrect >= 5) unlock("quiz5");
+
+    document.getElementById("missionText").innerText =
+        missionIndex < missions.length ? missions[missionIndex] : "All missions completed!";
+}
+
+function unlock(key) {
+    if (!achievements[key].unlocked) {
+        achievements[key].unlocked = true;
+    }
+}
+
+function updateAchievements() {
+    document.getElementById("achievementList").innerHTML =
+        Object.keys(achievements).map(k=>{
+            let a = achievements[k];
+            return `<span class="badge ${a.unlocked?'':'locked'}">${a.unlocked?'✅':'🔒'} ${a.name} — ${a.desc}</span>`;
+        }).join("");
+}
+
+function showCompany(symbol) {
+    let s = stocks[symbol];
+    let owned = portfolio[symbol] ? portfolio[symbol].shares : 0;
+    document.getElementById("companyContent").innerHTML = `
+        <h2>${s.name} (${symbol})</h2>
+        <p><strong>Sector:</strong> ${s.sector}</p>
+        <p><strong>Price:</strong> ${money(s.price)}</p>
+        <p><strong>P/E Ratio:</strong> ${s.pe}</p>
+        <p><strong>Market Cap Category:</strong> ${s.marketCap}</p>
+        <p><strong>Dividend per game dividend day:</strong> ${money(s.dividend)}</p>
+        <p><strong>You own:</strong> ${owned} shares</p>
+        <p>${s.description}</p>
+        <p class="muted">These figures are fictionalized for the game and are not current market data.</p>`;
+    document.getElementById("companyModal").style.display = "block";
+}
+
+function closeCompany() {
+    document.getElementById("companyModal").style.display = "none";
+}
+
+function selectStock(symbol) {
+    selectedSymbol = symbol;
+    drawChart();
+}
+
+function drawChart() {
+    let canvas = document.getElementById("chart");
+    let ctx = canvas.getContext("2d");
+    let data = stocks[selectedSymbol].history;
+    document.getElementById("chartTitle").innerText = selectedSymbol + " price history";
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 1;
+    for (let i=0;i<5;i++) {
+        let y = 20 + i*55;
+        ctx.beginPath();
+        ctx.moveTo(40,y);
+        ctx.lineTo(canvas.width-20,y);
+        ctx.stroke();
+    }
+
+    let min = Math.min(...data);
+    let max = Math.max(...data);
+    if (max === min) max = min + 1;
+
+    ctx.strokeStyle = "#22c55e";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    data.forEach((v,i)=>{
+        let x = 40 + i*((canvas.width-70)/Math.max(1,data.length-1));
+        let y = 245 - ((v-min)/(max-min))*200;
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = "14px Arial";
+    ctx.fillText(money(max), 5, 30);
+    ctx.fillText(money(min), 5, 245);
+}
+
+function newQuiz() {
+    let q = quizzes[Math.floor(Math.random()*quizzes.length)];
+    document.getElementById("quizQuestion").innerText = q.q;
+    document.getElementById("quizResult").innerText = "";
+    document.getElementById("quizOptions").innerHTML =
+        q.a.map((opt,i)=>`<button class="quiz-option" onclick="answerQuiz(${i},${q.correct})">${opt}</button>`).join("");
+}
+
+function answerQuiz(choice, correct) {
+    quizAnswered++;
+    if (choice === correct) {
+        quizCorrect++;
+        addXP(20);
+        document.getElementById("quizResult").innerHTML = `<span class="green">Correct! +20 XP</span>`;
+    } else {
+        document.getElementById("quizResult").innerHTML = `<span class="red">Not quite. Try another question.</span>`;
+    }
+    updateGame();
+}
+
+function finishGame() {
+    if (finished) return;
+    finished = true;
+    let worth = cash + portfolioValue();
+    let won = worth >= 12000;
+    if (won) unlock("winner");
+
+    let scores = JSON.parse(localStorage.getItem("stockAcademyScores") || "[]");
+    scores.push({worth:worth, level:level, difficulty:difficulty, won:won, date:new Date().toLocaleDateString()});
+    scores.sort((a,b)=>b.worth-a.worth);
+    scores = scores.slice(0,10);
+    localStorage.setItem("stockAcademyScores", JSON.stringify(scores));
+
+    alert(
+        "🏁 30-Day Challenge Complete!\n\n" +
+        "Final Net Worth: " + money(worth) + "\n" +
+        (won ? "You beat the $12,000 goal!" : "You did not reach $12,000 this time.") +
+        "\nInvestor Level: " + level
+    );
+    updateGame();
+}
+
+function updateScores() {
+    let scores = JSON.parse(localStorage.getItem("stockAcademyScores") || "[]");
+    if (!scores.length) {
+        document.getElementById("scoreList").innerHTML = "<p>No completed games yet.</p>";
+        return;
+    }
+    document.getElementById("scoreList").innerHTML =
+        scores.map((s,i)=>`<p>#${i+1} — ${money(s.worth)} — Level ${s.level} — ${s.difficulty} — ${s.won?'🏆 Goal Reached':'Finished'} — ${s.date}</p>`).join("");
+}
+
+function saveGame() {
+    let data = {
+        stocks,cash,day,xp,level,portfolio,history,selectedSymbol,difficulty,
+        marketMood,missionIndex,quizAnswered,quizCorrect,dividendsEarned,
+        crashSurvived,finished,achievements
+    };
+    localStorage.setItem("stockAcademySave", JSON.stringify(data));
+}
+
+function loadGame() {
+    let raw = localStorage.getItem("stockAcademySave");
+    if (!raw) {
+        stocks = cloneBaseStocks();
+        return;
+    }
+    let d = JSON.parse(raw);
+    stocks = d.stocks || cloneBaseStocks();
+    cash = d.cash ?? 10000;
+    day = d.day ?? 1;
+    xp = d.xp ?? 0;
+    level = d.level ?? 1;
+    portfolio = d.portfolio || {};
+    history = d.history || [];
+    selectedSymbol = d.selectedSymbol || "AAPL";
+    difficulty = d.difficulty || "normal";
+    marketMood = d.marketMood || "Normal";
+    missionIndex = d.missionIndex || 0;
+    quizAnswered = d.quizAnswered || 0;
+    quizCorrect = d.quizCorrect || 0;
+    dividendsEarned = d.dividendsEarned || 0;
+    crashSurvived = d.crashSurvived || false;
+    finished = d.finished || false;
+    if (d.achievements) {
+        for (let k in achievements) if (d.achievements[k]) achievements[k].unlocked = d.achievements[k].unlocked;
+    }
+}
+
+function resetGame() {
+    if (!confirm("Reset the current game? High scores will stay saved.")) return;
+    localStorage.removeItem("stockAcademySave");
+    location.reload();
+}
+
+function updateGame() {
+    let pv = portfolioValue();
+    let nw = cash + pv;
+
+    document.getElementById("cash").innerText = money(cash);
+    document.getElementById("portfolioValue").innerText = money(pv);
+    document.getElementById("netWorth").innerText = money(nw);
+    document.getElementById("day").innerText = day;
+    document.getElementById("xp").innerText = xp;
+    document.getElementById("level").innerText = level;
+    document.getElementById("xpBar").style.width = xp + "%";
+    document.getElementById("dayProgress").style.width = (day/30*100) + "%";
+    document.getElementById("marketMood").innerText = marketMood;
+    document.getElementById("difficulty").value = difficulty;
+
+    updateDifficultyText();
+    updateStockTable();
+    updatePortfolio();
+    updateHistory();
+    updateMissions();
+    updateAchievements();
+    updateScores();
+    drawChart();
+    saveGame();
+}
+
+loadGame();
+newQuiz();
+updateGame();
+</script>
+</body>
+</html>
+"""
+
+class StockGameHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(HTML_PAGE.encode("utf-8"))
+
+def main():
+    host = "127.0.0.1"
+    port = 8000
+    server = HTTPServer((host, port), StockGameHandler)
+
+    print("=" * 42)
+    print("       STOCK MARKET ACADEMY")
+    print("=" * 42)
+    print(f"Open your browser to: http://{host}:{port}")
+    print("Press CTRL+C to stop the server.")
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
+        server.server_close()
+
+if __name__ == "__main__":
+    main()
